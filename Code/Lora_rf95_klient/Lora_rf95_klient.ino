@@ -6,7 +6,9 @@
 RH_RF95 rf95;
 
 //definerer afstandsensor pins
-AfstandsSensor afstandssensor(3, 4);
+AfstandsSensor afstandssensor(4, 5);
+
+#define minspaending 1.9
 
 void setup()
 {
@@ -17,6 +19,7 @@ void setup()
 
   //sætter signal styrke db.
   rf95.setTxPower(20, false);
+  pinMode(A2, INPUT);
 
 }
 
@@ -24,10 +27,13 @@ void lorasend (double i) {
   Serial.println("Sending to rf95_server");
   // Send a message to rf95_server
   int s = (int) i;
-  uint8_t data [3];
+  uint8_t data [4];
   data[1] = (s >> 8) & 0xff;
   data[2] = (s) & 0xff;
   data[0] = 69;
+  //if voltage is under 1.9v, spaending returns 1, and data[3] sends a q to master, which means low voltage.
+  //otherwise it sends 0 which means OK.
+  data[3] = spaending() ? 'q' : '0';
   rf95.send(data, sizeof(data));
 
   rf95.waitPacketSent();
@@ -67,7 +73,27 @@ void wakeUp() {
   }
 }
 
+//reads voltage on battery, and return 1 if voltage is under 1.9. 
+bool spaending() {
+  float adc = analogRead(A2);
+  float spaending = (adc / 1024) * 5 * 4.23;
+
+  Serial.print("Spænding: ");
+  Serial.println(spaending);
+  delay(1000);
+
+  if (spaending <= minspaending) return 1;
+  return 0;
+
+
+
+}
+
+
+
 void loop() {
+
   if (rf95.available()) wakeUp();
 
+  spaending();
 }
