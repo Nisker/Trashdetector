@@ -35,8 +35,9 @@ void loop()
       digitalWrite(led, HIGH);
       float i = ((buf[1] << 8) + buf[2]);
       i = i / 10;
-      i > 500 ? Serial.printf("Blocked sensor. from device: %d. RSSI: %d\n", buf[0], rf95.lastRssi()) : Serial.printf("Got %3.1fcm. from device: %d. RSSI: %d\n", i, buf[0], rf95.lastRssi());
-
+      i > 500 ? Serial.printf("Blocked sensor. from device: %d. RSSI: %d", buf[0], rf95.lastRssi()) : Serial.printf("Got %3.1fcm. from device: %d. RSSI: %d", i, buf[0], rf95.lastRssi());
+      if (buf[3] == 'q') Serial.print(" low Battery");
+      Serial.println("");
       // Send a reply
       uint8_t data[] = "A";
       rf95.send(data, sizeof(data));
