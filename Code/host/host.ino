@@ -57,7 +57,7 @@ void setup()
 }
 
 void loop() {
-  if (millis() - last > 10000) {
+  if (millis() - last > 600000) { //wait 10 minutes
     last = millis();
     mesureDistance();
     sendDataRequest();
