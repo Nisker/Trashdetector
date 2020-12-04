@@ -1,3 +1,5 @@
+#include <LowPower.h>
+#include <LM35.h>
 #include <afstandssensor.h>
 
 //radiohead lora
@@ -8,7 +10,9 @@ RH_RF95 rf95;
 //definerer afstandsensor pins
 AfstandsSensor afstandssensor(4, 5);
 
-#define minspaending 1.9
+#define minspaending 5
+LM35 temp(A1);
+
 
 void setup()
 {
@@ -20,6 +24,7 @@ void setup()
   //sætter signal styrke db.
   rf95.setTxPower(20, false);
   pinMode(A2, INPUT);
+  pinMode(A1, INPUT);
 
 }
 
@@ -76,10 +81,11 @@ void wakeUp() {
 //reads voltage on battery, and return 1 if voltage is under 1.9. 
 bool spaending() {
   float adc = analogRead(A2);
-  float spaending = (adc / 1024) * 5 * 4.23;
+  float spaending = (adc / 1024) * 6.6 * (619/143);
 
   Serial.print("Spænding: ");
-  Serial.println(spaending);
+  Serial.print(spaending);
+  
   delay(1000);
 
   if (spaending <= minspaending) return 1;
@@ -94,6 +100,10 @@ bool spaending() {
 void loop() {
 
   if (rf95.available()) wakeUp();
-
+  Serial.print("temp: ");
+  Serial.print(temp.cel());
+  Serial.println(" ");
   spaending();
+
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
 }
