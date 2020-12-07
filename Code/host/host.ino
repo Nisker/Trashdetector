@@ -57,7 +57,7 @@ void setup()
 }
 
 void loop() {
-  if (millis() - last > 4000) {
+  if (millis() - last > 600000) { //wait 10 minutes
     last = millis();
     mesureDistance();
     sendDataRequest();
@@ -101,7 +101,7 @@ void lora() {
       if (len == 4) {
         float i = ((buf[1] << 8) + buf[2]);
         bool bat = 0;
-        i = (i == 0xFFFF) ? -1 : i / 10;
+        i = (i == 65526) ? -1 : i / 10;
         Serial.printf("Got %3.1fcm. from device: %d. RSSI: %d", i, buf[0], rf95.lastRssi());
         if (buf[3] == 'q') {
           bat = 1;
