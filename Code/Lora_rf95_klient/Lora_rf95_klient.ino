@@ -12,7 +12,6 @@ AfstandsSensor afstandssensor(4, 5);
 #define minspaending 5
 
 
-
 void setup()
 {
   Serial.begin(115200);
@@ -36,7 +35,7 @@ void lorasend (double i) {
   data[1] = (s >> 8) & 0xff;
   data[2] = (s) & 0xff;
   data[0] = 69;
-  //if voltage is under 1.9v, spaending returns 1, and data[3] sends a q to master, which means low voltage.
+  //if voltage is under 5v, spaending returns 1, and data[3] sends a q to master, which means low voltage.
   //otherwise it sends 0 which means OK.
   data[3] = spaending() ? 'q' : '0';
   rf95.send(data, sizeof(data));
