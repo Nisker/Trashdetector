@@ -28,7 +28,6 @@ void setup()
   pinMode(A1, INPUT);
 
   analogReference(INTERNAL);
-
 }
 
 void lorasend (double i) {
@@ -97,23 +96,9 @@ bool spaending() {
 
   if (spaending <= minspaending) return 1;
   return 0;
-
-
-
 }
 
 void loop() {
-  float temp = analogRead(TemperaturePin) * 0.48828125;
-  double i = afstandssensor.afstandCM(temp);
-
-  Serial.print("afstand: ");
-  Serial.print(i);
-  Serial.print("  Temp: ");
-  Serial.println(temp);
-
-  lorasend(i * 10);
-
-
   if (rf95.available()) wakeUp();
   Serial.print("temp: ");
   Serial.print(temp.cel());
