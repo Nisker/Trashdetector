@@ -1,5 +1,4 @@
 #include <LowPower.h>
-#include <LM35.h>
 #include <afstandssensor.h>
 #define TemperaturePin A0
 
@@ -12,7 +11,7 @@ RH_RF95 rf95;
 AfstandsSensor afstandssensor(4, 5);
 
 #define minspaending 5
-LM35 temp(A1);
+
 
 void setup()
 {
@@ -72,7 +71,11 @@ void wakeUp() {
   uint8_t len = sizeof(buf);
   if (rf95.recv(buf, &len)) {
     if (!strcmp(buf, "B")) {
-      double i = afstandssensor.afstandCM();
+      float temp = analogRead(A0);
+      temp = (temp * 0.48828125) / 4.225306122;
+      Serial.print(" temp: ");
+      Serial.print(temp);
+      double i = afstandssensor.afstandCM(temp);
       Serial.print("afstand: ");
       Serial.println(i);
       lorasend(i * 10);
@@ -100,9 +103,6 @@ bool spaending() {
 
 void loop() {
   if (rf95.available()) wakeUp();
-  Serial.print("temp: ");
-  Serial.print(temp.cel());
-  Serial.println(" ");
   spaending();
 
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
