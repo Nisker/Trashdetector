@@ -26,6 +26,9 @@ void setup()
   pinMode(A2, INPUT);
   pinMode(A1, INPUT);
 
+  analogReference(INTERNAL);
+
+
 }
 
 void lorasend (double i) {
@@ -78,14 +81,18 @@ void wakeUp() {
   }
 }
 
-//reads voltage on battery, and return 1 if voltage is under 1.9. 
+//reads voltage on battery, and return 1 if voltage is under 1.9.
 bool spaending() {
   float adc = analogRead(A2);
-  float spaending = (adc / 1024) * 6.6 * (619/143);
+  float factor = (463 / 51.2) * 1.22;
+  float spaending = (adc / 1024) * factor;
 
   Serial.print("Spænding: ");
   Serial.print(spaending);
-  
+
+  Serial.print(" adc: ");
+  Serial.print(adc);
+
   delay(1000);
 
   if (spaending <= minspaending) return 1;
