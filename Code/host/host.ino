@@ -6,7 +6,7 @@
 #include "SPI.h"
 #include <Wire.h>
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-
+#define timing 10
 
 SFEVL53L1X distanceSensor;
 RH_RF95 rf95;
@@ -57,7 +57,7 @@ void setup()
 }
 
 void loop() {
-  if (millis() - last > 600000) { //wait 10 minutes
+  if (millis() - last > timing*1000) { //wait 10 minutes
     last = millis();
     mesureDistance();
     sendDataRequest();
@@ -106,6 +106,8 @@ void lora() {
         if (buf[3] == 'q') {
           bat = 1;
           Serial.print(" low Battery");
+        }else{
+          
         }
         Serial.println("");
         saveToSD(buf[0], i, bat);
