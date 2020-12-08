@@ -27,8 +27,6 @@ void setup()
   pinMode(A1, INPUT);
 
   analogReference(INTERNAL);
-
-
 }
 
 void lorasend (double i) {
@@ -97,12 +95,7 @@ bool spaending() {
 
   if (spaending <= minspaending) return 1;
   return 0;
-
-
-
 }
-
-
 
 void loop() {
 
