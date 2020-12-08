@@ -1,6 +1,5 @@
 #include <LowPower.h>
 #include <afstandssensor.h>
-#define TemperaturePin A0
 
 //radiohead lora
 #include <SPI.h>
@@ -13,16 +12,16 @@ AfstandsSensor afstandssensor(4, 5);
 #define minspaending 5
 
 
+
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) ;
   if (!rf95.init())
     Serial.println("init failed");
 
   //sætter signal styrke db.
   rf95.setTxPower(20, false);
-  
   pinMode(A2, INPUT);
   pinMode(A1, INPUT);
 
@@ -33,10 +32,13 @@ void lorasend (double i) {
   Serial.println("Sending to rf95_server");
   // Send a message to rf95_server
   int s = (int) i;
-  uint8_t data [3];
+  uint8_t data [4];
   data[1] = (s >> 8) & 0xff;
   data[2] = (s) & 0xff;
   data[0] = 69;
+  //if voltage is under 1.9v, spaending returns 1, and data[3] sends a q to master, which means low voltage.
+  //otherwise it sends 0 which means OK.
+  data[3] = spaending() ? 'q' : '0';
   rf95.send(data, sizeof(data));
 
   rf95.waitPacketSent();
@@ -51,8 +53,6 @@ void lorasend (double i) {
     {
       Serial.print("got reply: ");
       Serial.println((char*)buf);
-      //      Serial.print("RSSI: ");
-      //      Serial.println(rf95.lastRssi(), DEC);
     }
     else
     {
@@ -63,7 +63,6 @@ void lorasend (double i) {
   {
     Serial.println("No reply, is rf95_server running?");
   }
-  delay(4000);
 }
 
 void wakeUp() {
