@@ -5,11 +5,13 @@
 #include "SD.h"
 #include "SPI.h"
 #include <Wire.h>
+#include "DS3231.h"
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-#define PollingIntervalSeconds 10
-
+#define PollingIntervalSeconds 60
 SFEVL53L1X distanceSensor;//Defaults to (I2C @21+22).
 RH_RF95 rf95;             //This defaults to use pins (CS = SPI_SS, Interupt pin = 2, SPI interface = VSPI).
+
+RTClib RTC;
 
 int led = 9;              //LED is used to see if we get a response from a node.
 unsigned long last = 0;   //This is used to store the previous time, to calculate a delta time.
@@ -34,29 +36,6 @@ void VL53init() {
   }
   Serial.println("Sensor online!");
   distanceSensor.setDistanceModeShort();  //Sets the sensor to higher accuracy at short distance.
-}
-
-void setup() {
-  pinMode(led, OUTPUT);   //Sets LED to output.
-  Wire.begin();           //initializes I2C.
-  Serial.begin(115200);   //Initializes UART @ 115200 baud.
-  delay(100);             //Waits to make sure UART is setup when we need it.
-
-  SDinit();               //Initializes SD card
-
-  if (!rf95.init()) Serial.println("init failed"); //Initializes LoRa moudule and warns us if init faliled.
-  rf95.setTxPower(20, false);                      //20dbm (100mW) Configuration. theoretical 2x distance in comparison to 14dbm (25mW)
-
-  VL53init();             //Initializes ToF distance sensor.
-}
-
-void loop() {
-  if (millis() - last > PollingIntervalSeconds*1000) {  //wait specified time in seconds.
-    last = millis();                                    //Saves the current time to calculate delta time.
-    mesureDistance();                                   //Locally mesures distance with ToF sensor.
-    sendDataRequest();                                  //Send data request to all nodes.
-  }
-  lora();                                               //Handles LoRa traffic.
 }
 
 void mesureDistance() {
@@ -119,49 +98,11 @@ void saveToSD(uint8_t Addr, float Data, bool LowBat) {
   sprintf(path, "/ID_%u.CSV", Addr);                      //create the path string which includes the device ID, and saves into path array.
   char text[20];                                          //make an array big enough to hold the string we want to save to the SD card.
   char B = LowBat ? 'Y' : 'N';                            //make B either Y or N, depending on low battery warning.
-  sprintf(text, "\n%lu;%3.1f;%c", millis(), Data, B);     //Create string ex. ("60000;25.2;Y";) and save it into text[]
-  if (testFileName(SD, path)) {                           //check if the file exist on the SD card. if not we want to create it.
-    writeFile(SD, path, "Tid;afstand (cm);Low Battery?"); //Create a file and write the into the file. (the string is the CSV header).
+  sprintf(text, "\n%lu;%3.1f;%c", RTC.now().unixtime(), Data, B);     //Create string ex. ("60000;25.2;Y";) and save it into text[]
+  if (!SD.exists(path)) {                           //check if the file exist on the SD card. if not we want to create it.
+    appendFile(SD, path, "Tid;afstand (cm);Low Battery?"); //Create a file and write the into the file. (the string is the CSV header).
   }
   appendFile(SD, path, text);                             //Append the text[] string to the path[] on the SD card. 
-}
-
-void writeFile(fs::FS &fs, const char * path, const char * message) { //borrowed from SD example.
-  Serial.printf("Writing file: %s\n", path);
-  File file = fs.open(path, FILE_WRITE);                  //writes the path to the SD card
-  if (!file) {
-    Serial.println("Failed to open file for writing");
-    return;
-  }
-  if (file.print(message)) {                              //Writes the CSV header to the newly created file.
-    Serial.println("File written");
-  } else {
-    Serial.println("Write failed");
-  }
-  file.close();
-}
-
-bool testFileName(fs::FS &fs, const char * dirname) { //In this funcion we want to test if a file exist.
-  File root = fs.open("/");                 //We only operate in root. so we want to open root.
-  if (!root) {                              //If we couldnt open root somting went wrong.
-    Serial.println("Failed to open directory");
-    return 1;                               //and we do a tactical retreat.
-  }
-  if (!root.isDirectory()) {                //Make sure Root is a directory.
-    Serial.println("Not a directory");
-    return 1;
-  }
-
-  File file = root.openNextFile();          //Opens the first file.
-  while (file) {                            //Loops as long as we have untested files.
-    if (!file.isDirectory()) {              //Check to see if its a file or a folder.
-      if (!strcmp(file.name(), dirname)) {  //Compare the filename to the currently opened file.
-        return 0;                           //if the file exists we want to return 0 = Exist.
-      }
-    }
-    file = root.openNextFile();             //Opens the next file.
-  }
-  return 1;                                 //File did not exist.
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message) {
@@ -174,4 +115,27 @@ void appendFile(fs::FS &fs, const char * path, const char * message) {
     Serial.println("Append failed");
   }
   file.close();
+}
+
+void setup() {
+  pinMode(led, OUTPUT);   //Sets LED to output.
+  Wire.begin();           //initializes I2C.
+  Serial.begin(115200);   //Initializes UART @ 115200 baud.
+  delay(100);             //Waits to make sure UART is setup when we need it.
+
+  SDinit();               //Initializes SD card
+
+  if (!rf95.init()) Serial.println("init failed"); //Initializes LoRa moudule and warns us if init faliled.
+  rf95.setTxPower(20, false);                      //20dbm (100mW) Configuration. theoretical 2x distance in comparison to 14dbm (25mW)
+
+  VL53init();             //Initializes ToF distance sensor.
+  saveToSD(55, 123, InternalBatt());
+}
+
+void loop() {
+  if (!(RTC.now().unixtime()%PollingIntervalSeconds)) {  //wait specified time in seconds.
+    mesureDistance();                                   //Locally mesures distance with ToF sensor.
+    sendDataRequest();                                  //Send data request to all nodes.
+  }
+  lora();                                               //Handles LoRa traffic.
 }
