@@ -11,7 +11,7 @@
 #include <Wire.h>
 #include "DS3231.h"
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-#define PollingIntervalSeconds 30*60
+#define PollingIntervalSeconds (30*60)
 
 const char* ssid = "Bo";
 const char* password = "12345678";
