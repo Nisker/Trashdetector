@@ -2,7 +2,7 @@
 <html>
 <head>
 	
-	<title>Leaflet ide</title>
+	<title>Trash interface</title>
 
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,13 +26,15 @@
 <br>
 <div id="mapid" class="rounded" style="width: 75vw; height: 75vh;"></div>
 <div id="Chart" class="container-xxl">
-<select id="idnr" name="id" onchange="drawGraph()"></select>
+<select id="idnr" name="id" onchange="drawGraph()"></select>&nbsp;&nbsp;
+<input type="checkbox" class="form-check-input" id="exampleCheck" onchange="drawGraph()">
 <canvas id="myChart" width="400" height="100"></canvas>
 </div>
 </center>
 <script>
 	var IDs = [];
 	var Drawn = 0;
+	var Depth = 85;
 	drawMain();
 	ShowMap();
 	var mymap = L.map('mapid').setView([57.053, 9.912], 19);
@@ -80,12 +82,21 @@
     	var data = dist_chart.config.data;
     	data.datasets[0].data = dataset.distance;
     	data.labels = dataset.time;
-    	dist_chart.update();
+		if (document.getElementById("exampleCheck").checked){
+			dist_chart.config.options.scales.yAxes[0].ticks.reverse = false;
+			dist_chart.config.options.scales.yAxes[0].ticks.callback = function(value, index, values) { return value + '%'; }
+            dist_chart.config.data.datasets[0].label = "Percent left inside the continer"
+		}else {
+			dist_chart.config.options.scales.yAxes[0].ticks.reverse = true;
+			dist_chart.config.options.scales.yAxes[0].ticks.callback = function(value, index, values) { return value + ' cm'; }
+			dist_chart.config.data.datasets[0].label = "Centimeters left inside the continer"
+		}
+		dist_chart.update();
+		
 	}
 
      async function getData() {
 		var eID = document.getElementById("idnr").value;
-		console.log("val: " + eID);
         const response = await fetch('ID_'+eID+'.CSV');
         const data = await response.text();
         const time = [];
@@ -94,7 +105,12 @@
         rows.forEach(row => {
           const cols = row.split(';');
           time.push(moment.unix(cols[0]-3600).format('DD MM YYYY HH:mm:ss'));
-          distance.push(parseFloat(cols[1]));
+          if (document.getElementById("exampleCheck").checked) {
+			  distance.push((1-(parseFloat(cols[1])/Depth))*100);
+			  (1-(parseFloat(cols[1])/Depth))*100
+		  }else{
+			  distance.push(parseFloat(cols[1]));
+		  }
         });
         return { time, distance };
       }
@@ -133,12 +149,13 @@
 			var color1 = 'grey';
 			var color2 = 'light grey';
 			if (data[i].Active == true){
-				color1 = 'green';
+				color1 = 'yellow';
 				color2 = '#f03';
 				IDs[i]= data[i].ID;
 				var dist = await getCurrentlength(data[i].ID);
-				if (dist < 20.0) color2 = 'red';
-				if (dist > 40.0) color2 = 'green';
+				dist = (1-(dist/Depth))*100
+				if (dist < 50) color2 = 'green';
+				if (dist > 80) color2 = 'red';
 			}
 			L.circle([data[i].lat, data[i].long], {
 				color: color1,
@@ -162,6 +179,5 @@
       }
 	
 </script>
-
 </body>
 </html>
