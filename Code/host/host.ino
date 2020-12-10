@@ -11,7 +11,7 @@
 #include <Wire.h>
 #include "DS3231.h"
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-#define PollingIntervalSeconds 5
+#define PollingIntervalSeconds 30*60
 
 const char* ssid = "Bo";
 const char* password = "12345678";
@@ -122,9 +122,6 @@ void appendFile(fs::FS &fs, const char * path, const char * message) {
   if (!file) {
     Serial.println("Failed to open file for appending");
     return;
-  }
-  if (!file.print(message)) {                 //Append message to file.
-    Serial.println("Append failed");
   }
   file.close();
 }
