@@ -1,24 +1,38 @@
 
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
 #include <SPI.h>
 #include <RH_RF95.h>          //http://www.airspayce.com/mikem/arduino/RadioHead/index.html
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
 #include <Wire.h>
+#include "DS3231.h"
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-#define PollingIntervalSeconds 10
+#define PollingIntervalSeconds 30*60
+
+const char* ssid = "Bo";
+const char* password = "12345678";
+const char* host = "trash";
 
 SFEVL53L1X distanceSensor;//Defaults to (I2C @21+22).
 RH_RF95 rf95;             //This defaults to use pins (CS = SPI_SS, Interupt pin = 2, SPI interface = VSPI).
+WebServer server(80);
+RTClib RTC;
 
 int led = 9;              //LED is used to see if we get a response from a node.
 unsigned long last = 0;   //This is used to store the previous time, to calculate a delta time.
+bool WasHereOnce = 0;
+static bool hasSD = false;
+File uploadFile;
 
 void SDinit() {
   if (!SD.begin(4)) {     //initilize SD card width CS = 4.
     Serial.println("Card Mount Failed");
     return;
-  }
+  }else hasSD = true;
 
   if (SD.cardType() == CARD_NONE) {
     Serial.println("No SD card attached");
@@ -34,29 +48,6 @@ void VL53init() {
   }
   Serial.println("Sensor online!");
   distanceSensor.setDistanceModeShort();  //Sets the sensor to higher accuracy at short distance.
-}
-
-void setup() {
-  pinMode(led, OUTPUT);   //Sets LED to output.
-  Wire.begin();           //initializes I2C.
-  Serial.begin(115200);   //Initializes UART @ 115200 baud.
-  delay(100);             //Waits to make sure UART is setup when we need it.
-
-  SDinit();               //Initializes SD card
-
-  if (!rf95.init()) Serial.println("init failed"); //Initializes LoRa moudule and warns us if init faliled.
-  rf95.setTxPower(20, false);                      //20dbm (100mW) Configuration. theoretical 2x distance in comparison to 14dbm (25mW)
-
-  VL53init();             //Initializes ToF distance sensor.
-}
-
-void loop() {
-  if (millis() - last > PollingIntervalSeconds*1000) {  //wait specified time in seconds.
-    last = millis();                                    //Saves the current time to calculate delta time.
-    mesureDistance();                                   //Locally mesures distance with ToF sensor.
-    sendDataRequest();                                  //Send data request to all nodes.
-  }
-  lora();                                               //Handles LoRa traffic.
 }
 
 void mesureDistance() {
@@ -119,49 +110,11 @@ void saveToSD(uint8_t Addr, float Data, bool LowBat) {
   sprintf(path, "/ID_%u.CSV", Addr);                      //create the path string which includes the device ID, and saves into path array.
   char text[20];                                          //make an array big enough to hold the string we want to save to the SD card.
   char B = LowBat ? 'Y' : 'N';                            //make B either Y or N, depending on low battery warning.
-  sprintf(text, "\n%lu;%3.1f;%c", millis(), Data, B);     //Create string ex. ("60000;25.2;Y";) and save it into text[]
-  if (testFileName(SD, path)) {                           //check if the file exist on the SD card. if not we want to create it.
-    writeFile(SD, path, "Tid;afstand (cm);Low Battery?"); //Create a file and write the into the file. (the string is the CSV header).
+  sprintf(text, "\n%lu;%3.1f;%c", RTC.now().unixtime(), Data, B);     //Create string ex. ("60000;25.2;Y";) and save it into text[]
+  if (!SD.exists(path)) {                           //check if the file exist on the SD card. if not we want to create it.
+    appendFile(SD, path, "Tid;afstand (cm);Low Battery?"); //Create a file and write the into the file. (the string is the CSV header).
   }
   appendFile(SD, path, text);                             //Append the text[] string to the path[] on the SD card. 
-}
-
-void writeFile(fs::FS &fs, const char * path, const char * message) { //borrowed from SD example.
-  Serial.printf("Writing file: %s\n", path);
-  File file = fs.open(path, FILE_WRITE);                  //writes the path to the SD card
-  if (!file) {
-    Serial.println("Failed to open file for writing");
-    return;
-  }
-  if (file.print(message)) {                              //Writes the CSV header to the newly created file.
-    Serial.println("File written");
-  } else {
-    Serial.println("Write failed");
-  }
-  file.close();
-}
-
-bool testFileName(fs::FS &fs, const char * dirname) { //In this funcion we want to test if a file exist.
-  File root = fs.open("/");                 //We only operate in root. so we want to open root.
-  if (!root) {                              //If we couldnt open root somting went wrong.
-    Serial.println("Failed to open directory");
-    return 1;                               //and we do a tactical retreat.
-  }
-  if (!root.isDirectory()) {                //Make sure Root is a directory.
-    Serial.println("Not a directory");
-    return 1;
-  }
-
-  File file = root.openNextFile();          //Opens the first file.
-  while (file) {                            //Loops as long as we have untested files.
-    if (!file.isDirectory()) {              //Check to see if its a file or a folder.
-      if (!strcmp(file.name(), dirname)) {  //Compare the filename to the currently opened file.
-        return 0;                           //if the file exists we want to return 0 = Exist.
-      }
-    }
-    file = root.openNextFile();             //Opens the next file.
-  }
-  return 1;                                 //File did not exist.
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message) {
@@ -170,8 +123,285 @@ void appendFile(fs::FS &fs, const char * path, const char * message) {
     Serial.println("Failed to open file for appending");
     return;
   }
-  if (!file.print(message)) {                 //Append message to file.
-    Serial.println("Append failed");
-  }
   file.close();
+}
+
+void returnOK() {
+  server.send(200, "text/plain", "");
+}
+
+void returnFail(String msg) {
+  server.send(500, "text/plain", msg + "\r\n");
+}
+
+bool loadFromSdCard(String path) {
+  String dataType = "text/plain";
+  if (path.endsWith("/")) {
+    path += "index.html";
+  }
+
+  if (path.endsWith(".src")) {
+    path = path.substring(0, path.lastIndexOf("."));
+  } else if (path.endsWith(".html")) {
+    dataType = "text/html";
+  } else if (path.endsWith(".css")) {
+    dataType = "text/css";
+  } else if (path.endsWith(".js")) {
+    dataType = "application/javascript";
+  } else if (path.endsWith(".png")) {
+    dataType = "image/png";
+  } else if (path.endsWith(".gif")) {
+    dataType = "image/gif";
+  } else if (path.endsWith(".jpg")) {
+    dataType = "image/jpeg";
+  } else if (path.endsWith(".ico")) {
+    dataType = "image/x-icon";
+  } else if (path.endsWith(".xml")) {
+    dataType = "text/xml";
+  } else if (path.endsWith(".pdf")) {
+    dataType = "application/pdf";
+  } else if (path.endsWith(".zip")) {
+    dataType = "application/zip";
+  }
+
+  File dataFile = SD.open(path.c_str());
+  if (dataFile.isDirectory()) {
+    path += "/index.html";
+    dataType = "text/html";
+    dataFile = SD.open(path.c_str());
+  }
+
+  if (!dataFile) {
+    return false;
+  }
+
+  if (server.hasArg("download")) {
+    dataType = "application/octet-stream";
+  }
+
+  if (server.streamFile(dataFile, dataType) != dataFile.size()) {
+    Serial.println("Sent less data than expected!");
+  }
+
+  dataFile.close();
+  return true;
+}
+
+void handleFileUpload() {
+  if (server.uri() != "/edit") {
+    return;
+  }
+  HTTPUpload& upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    if (SD.exists((char *)upload.filename.c_str())) {
+      SD.remove((char *)upload.filename.c_str());
+    }
+    uploadFile = SD.open(upload.filename.c_str(), FILE_WRITE);
+    Serial.print("Upload: START, filename: "); Serial.println(upload.filename);
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (uploadFile) {
+      uploadFile.write(upload.buf, upload.currentSize);
+    }
+    Serial.print("Upload: WRITE, Bytes: "); Serial.println(upload.currentSize);
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (uploadFile) {
+      uploadFile.close();
+    }
+    Serial.print("Upload: END, Size: "); Serial.println(upload.totalSize);
+  }
+}
+
+void deleteRecursive(String path) {
+  File file = SD.open((char *)path.c_str());
+  if (!file.isDirectory()) {
+    file.close();
+    SD.remove((char *)path.c_str());
+    return;
+  }
+
+  file.rewindDirectory();
+  while (true) {
+    File entry = file.openNextFile();
+    if (!entry) {
+      break;
+    }
+    String entryPath = path + "/" + entry.name();
+    if (entry.isDirectory()) {
+      entry.close();
+      deleteRecursive(entryPath);
+    } else {
+      entry.close();
+      SD.remove((char *)entryPath.c_str());
+    }
+    yield();
+  }
+
+  SD.rmdir((char *)path.c_str());
+  file.close();
+}
+
+void handleDelete() {
+  if (server.args() == 0) {
+    return returnFail("BAD ARGS");
+  }
+  String path = server.arg(0);
+  if (path == "/" || !SD.exists((char *)path.c_str())) {
+    returnFail("BAD PATH");
+    return;
+  }
+  deleteRecursive(path);
+  returnOK();
+}
+
+void handleCreate() {
+  if (server.args() == 0) {
+    return returnFail("BAD ARGS");
+  }
+  String path = server.arg(0);
+  if (path == "/" || SD.exists((char *)path.c_str())) {
+    returnFail("BAD PATH");
+    return;
+  }
+
+  if (path.indexOf('.') > 0) {
+    File file = SD.open((char *)path.c_str(), FILE_WRITE);
+    if (file) {
+      file.write(0);
+      file.close();
+    }
+  } else {
+    SD.mkdir((char *)path.c_str());
+  }
+  returnOK();
+}
+
+void printDirectory() {
+  if (!server.hasArg("dir")) {
+    return returnFail("BAD ARGS");
+  }
+  String path = server.arg("dir");
+  if (path != "/" && !SD.exists((char *)path.c_str())) {
+    return returnFail("BAD PATH");
+  }
+  File dir = SD.open((char *)path.c_str());
+  path = String();
+  if (!dir.isDirectory()) {
+    dir.close();
+    return returnFail("NOT DIR");
+  }
+  dir.rewindDirectory();
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/json", "");
+  WiFiClient client = server.client();
+
+  server.sendContent("[");
+  for (int cnt = 0; true; ++cnt) {
+    File entry = dir.openNextFile();
+    if (!entry) {
+      break;
+    }
+
+    String output;
+    if (cnt > 0) {
+      output = ',';
+    }
+
+    output += "{\"type\":\"";
+    output += (entry.isDirectory()) ? "dir" : "file";
+    output += "\",\"name\":\"";
+    output += entry.name();
+    output += "\"";
+    output += "}";
+    server.sendContent(output);
+    entry.close();
+  }
+  server.sendContent("]");
+  dir.close();
+}
+
+void handleNotFound() {
+  if (hasSD && loadFromSdCard(server.uri())) {
+    return;
+  }
+  String message = "SDCARD Not Detected\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " NAME:" + server.argName(i) + "\n VALUE:" + server.arg(i) + "\n";
+  }
+  server.send(404, "text/plain", message);
+  Serial.print(message);
+}
+
+void Wifiinit(){
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  
+  uint8_t i = 0;
+  while (WiFi.status() != WL_CONNECTED && i++ < 20) {//wait 10 seconds
+    delay(500);
+  }
+  if (i == 21) {
+    Serial.print("Could not connect to ");
+    Serial.println(ssid);
+  }
+  Serial.print("Connected! IP address: ");
+  Serial.println(WiFi.localIP());
+
+    if (MDNS.begin(host)) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("MDNS responder started");
+    Serial.print("You can now connect to http://");
+    Serial.print(host);
+    Serial.println(".local");
+  }
+
+  
+  server.on("/list", HTTP_GET, printDirectory);
+  server.on("/edit", HTTP_DELETE, handleDelete);
+  server.on("/edit", HTTP_PUT, handleCreate);
+  server.on("/edit", HTTP_POST, []() {
+    returnOK();
+  }, handleFileUpload);
+  server.onNotFound(handleNotFound);
+
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+
+void setup() {
+  pinMode(led, OUTPUT);   //Sets LED to output.
+  Wire.begin();           //initializes I2C.
+  Serial.begin(115200);   //Initializes UART @ 115200 baud.
+  delay(100);             //Waits to make sure UART is setup when we need it.
+
+  Wifiinit();
+  
+  SDinit();               //Initializes SD card
+
+  if (!rf95.init()) Serial.println("init failed"); //Initializes LoRa moudule and warns us if init faliled.
+  rf95.setTxPower(20, false);                      //20dbm (100mW) Configuration. theoretical 2x distance in comparison to 14dbm (25mW)
+
+  VL53init();             //Initializes ToF distance sensor.
+
+}
+
+void loop() {
+  if (!(RTC.now().unixtime()%PollingIntervalSeconds)) {  //wait specified time in seconds.
+    if (!WasHereOnce){
+      mesureDistance();                                   //Locally mesures distance with ToF sensor.
+      sendDataRequest();                                  //Send data request to all nodes.
+      WasHereOnce = 1;
+    }
+  } else WasHereOnce = 0;
+  lora();                                               //Handles LoRa traffic.
+  server.handleClient();
 }
