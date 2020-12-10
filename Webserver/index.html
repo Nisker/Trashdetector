@@ -26,73 +26,25 @@
 <br>
 <div id="mapid" class="rounded" style="width: 75vw; height: 75vh;"></div>
 <div id="Chart" class="container-xxl">
-<select id="idnr" name="id" onchange="chang()"></select>
+<select id="idnr" name="id" onchange="drawGraph()"></select>
 <canvas id="myChart" width="400" height="100"></canvas>
 </div>
 </center>
 <script>
 	var IDs = [];
 	var Drawn = 0;
-
 	drawMain();
 	ShowMap();
 	var mymap = L.map('mapid').setView([57.053, 9.912], 19);
-	//getCurrentlength(0);
-
-	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
-		maxZoom: 19,
-		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
-			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-		id: 'mapbox/streets-v11',
-		tileSize: 512,
-		zoomOffset: -1
-	}).addTo(mymap);
-
-	L.circle([57.05264, 9.91112], {
-		color: 'red',
-		fillColor: '#f03',
-		fillOpacity: 0.5,
-		radius: 7
-	}).addTo(mymap);
-
-	L.circle([57.0534800, 9.9115389], {
-		color: 'red',
-		fillColor: '#f03',
-		fillOpacity: 0.5,
-		radius: 7
-	}).addTo(mymap);
-	
-	L.circle([57.05316, 9.91297], {
-		color: '#007300',
-		fillColor: '#004000',
-		fillOpacity: 0.5,
-		radius: 7
-	}).addTo(mymap);
-
-	L.circle([57.05336, 9.91201], {
-		color: 'red',
-		fillColor: '#f03',
-		fillOpacity: 0.5,
-		radius: 3
-	}).addTo(mymap);
-
-	function chang(){
-		//yChart.reset();
-		drawGraph();
-	}
-      async function drawGraph() {
-        const ctx = document.getElementById('myChart').getContext('2d');
-		var dataSet = "";
-        dataSet = await getData();
-        var myChart = new Chart(ctx, {
-          type: 'line',
+	var ctx = document.getElementById("myChart").getContext('2d');
+	var config = {	
+	type: 'line',
           data: {
-            labels: dataSet.time,
+            labels: null,
             datasets: [
               {
                 label: 'Centimeters left inside the continer',
-                data: dataSet.distance,
+                data: null,
                 fill: false,
                 borderColor: 'rgba(255, 99, 132, 1)',
                 backgroundColor: 'rgba(255, 99, 132, 0.5)',
@@ -110,18 +62,28 @@
 				}]
 			}
 		}
-        });
-      }
+    };
+	var dist_chart = new Chart(ctx, config);
 
-	function removeData(chart) {
-		chart.data.labels.pop();
-		chart.data.datasets.forEach((dataset) => {
-			dataset.data.pop();
-		});
-		chart.update();
+	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+		maxZoom: 19,
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+		id: 'mapbox/streets-v11',
+		tileSize: 512,
+		zoomOffset: -1
+	}).addTo(mymap);
+
+	async function drawGraph(){
+		var dataset = await getData();
+    	var data = dist_chart.config.data;
+    	data.datasets[0].data = dataset.distance;
+    	data.labels = dataset.time;
+    	dist_chart.update();
 	}
 
-      async function getData() {
+     async function getData() {
 		var eID = document.getElementById("idnr").value;
 		console.log("val: " + eID);
         const response = await fetch('ID_'+eID+'.CSV');
@@ -137,26 +99,21 @@
         return { time, distance };
       }
 
-	function AddItem()
-    {	if (!Drawn){
-		for (i = 0; i < IDs.length; i++){
-        // Create an Option object       
-        var opt = document.createElement("option");        
-
-        // Assign text and value to Option object
-        opt.text = "ID "+IDs[i];
-        opt.value = IDs[i];
-
-        // Add an Option object to Drop Down List Box
-        document.getElementById('idnr').options.add(opt);
+	function AddItem() {	
+		if (!Drawn){
+			for (i = 0; i < IDs.length; i++){
+			var opt = document.createElement("option");        
+			opt.text = "ID "+IDs[i];
+			opt.value = IDs[i];
+			document.getElementById('idnr').options.add(opt);
+			}
 		}
-	}
-	 Drawn=1;
+	 	Drawn=1;
 	}
 
 	function ShowMap() {
-	  document.getElementById("mapid").style.display = "block";
-	  document.getElementById("Chart").style.display = "none";
+		document.getElementById("mapid").style.display = "block";
+		document.getElementById("Chart").style.display = "none";
 	}
 	function ShowList() {
 		document.getElementById("mapid").style.display = "none";
