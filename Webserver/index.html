@@ -13,6 +13,7 @@
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
 	<!-- JavaScript Bundle with Popper -->
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js" integrity="sha512-qTXRIMyZIFb8iQcfjXWCO8+M5Tbc38Qi5WzdPOYZHIlZpzBHG3L3by84BBBOiRGiEb7KKtAOAs5qYdUiZiQNNQ==" crossorigin="anonymous"></script>
 </head>
 <body>
 <center>
@@ -23,18 +24,18 @@
 <button type="button" class="btn btn-primary" onclick="ShowGraph()">Graph</button>
 <br>
 <br>
-<div id="mapid" class="rounded" style="width: 80vw; height: 80vh;"></div>
+<div id="mapid" class="rounded" style="width: 75vw; height: 75vh;"></div>
 <div id="Chart" class="container-xxl">
-	
-<select id="idnr" name="id"></select>
-
-	
+<select id="idnr" name="id" onchange="chang()"></select>
 <canvas id="myChart" width="400" height="100"></canvas>
 </div>
 </center>
 <script>
 	var IDs = [];
+	var Drawn = 0;
+
 	drawMain();
+	ShowMap();
 	var mymap = L.map('mapid').setView([57.053, 9.912], 19);
 	//getCurrentlength(0);
 
@@ -75,17 +76,22 @@
 		fillOpacity: 0.5,
 		radius: 3
 	}).addTo(mymap);
-	
-      async function setup() {
+
+	function chang(){
+		//yChart.reset();
+		drawGraph();
+	}
+      async function drawGraph() {
         const ctx = document.getElementById('myChart').getContext('2d');
-        const dataSet = await getData();
-        const myChart = new Chart(ctx, {
+		var dataSet = "";
+        dataSet = await getData();
+        var myChart = new Chart(ctx, {
           type: 'line',
           data: {
             labels: dataSet.time,
             datasets: [
               {
-                label: 'Centimeters left indide the continer',
+                label: 'Centimeters left inside the continer',
                 data: dataSet.distance,
                 fill: false,
                 borderColor: 'rgba(255, 99, 132, 1)',
@@ -107,21 +113,46 @@
         });
       }
 
-      async function getData(id) {
-		  var id = 2;
-		  console.log(document.getElementById(idnr));
-        const response = await fetch('ID_'+id+'.CSV');
+	function removeData(chart) {
+		chart.data.labels.pop();
+		chart.data.datasets.forEach((dataset) => {
+			dataset.data.pop();
+		});
+		chart.update();
+	}
+
+      async function getData() {
+		var eID = document.getElementById("idnr").value;
+		console.log("val: " + eID);
+        const response = await fetch('ID_'+eID+'.CSV');
         const data = await response.text();
         const time = [];
         const distance = [];
         const rows = data.split('\n').slice(1);
         rows.forEach(row => {
           const cols = row.split(';');
-          time.push(cols[0]);
+          time.push(moment.unix(cols[0]-3600).format('DD MM YYYY HH:mm:ss'));
           distance.push(parseFloat(cols[1]));
         });
         return { time, distance };
       }
+
+	function AddItem()
+    {	if (!Drawn){
+		for (i = 0; i < IDs.length; i++){
+        // Create an Option object       
+        var opt = document.createElement("option");        
+
+        // Assign text and value to Option object
+        opt.text = "ID "+IDs[i];
+        opt.value = IDs[i];
+
+        // Add an Option object to Drop Down List Box
+        document.getElementById('idnr').options.add(opt);
+		}
+	}
+	 Drawn=1;
+	}
 
 	function ShowMap() {
 	  document.getElementById("mapid").style.display = "block";
@@ -132,19 +163,15 @@
 		document.getElementById("Chart").style.display = "none";
 	}
 	function ShowGraph() {
-	  document.getElementById("mapid").style.display = "none";
-	  document.getElementById("Chart").style.display = "block";
-	  setup();
-		console.log(IDs);
+	  	document.getElementById("mapid").style.display = "none";
+	  	document.getElementById("Chart").style.display = "block";
 		AddItem();
+	  	drawGraph();
 	}
 	
 	async function drawMain(){
         const response = await fetch('main.json');
         const data = await response.json();
-		//console.log(data);
-		//console.log("lat = " + parseFloat(data[0].lat));
-		//console.log("long = " + parseFloat(data[0].long));
 		for (i in data){
 			var color1 = 'grey';
 			var color2 = 'light grey';
@@ -177,21 +204,6 @@
 		  return distance[distance.length-1]
       }
 	
-	function AddItem()
-    {
-		for (i = 0; i < IDs.length; i++){
-        // Create an Option object       
-        var opt = document.createElement("option");        
-
-        // Assign text and value to Option object
-        opt.text = "ID "+IDs[i];
-        opt.value = IDs[i];
-
-        // Add an Option object to Drop Down List Box
-        document.getElementById('idnr').options.add(opt);
-		}
-	}
-
 </script>
 
 </body>
