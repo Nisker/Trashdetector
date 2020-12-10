@@ -7,7 +7,7 @@
 #include <Wire.h>
 #include "DS3231.h"
 #include "SparkFun_VL53L1X.h" //Click here to get the library: http://librarymanager/All#SparkFun_VL53L1X
-#define PollingIntervalSeconds 60
+#define PollingIntervalSeconds 5
 SFEVL53L1X distanceSensor;//Defaults to (I2C @21+22).
 RH_RF95 rf95;             //This defaults to use pins (CS = SPI_SS, Interupt pin = 2, SPI interface = VSPI).
 
@@ -15,6 +15,7 @@ RTClib RTC;
 
 int led = 9;              //LED is used to see if we get a response from a node.
 unsigned long last = 0;   //This is used to store the previous time, to calculate a delta time.
+bool WasHereOnce = 0;
 
 void SDinit() {
   if (!SD.begin(4)) {     //initilize SD card width CS = 4.
@@ -134,8 +135,11 @@ void setup() {
 
 void loop() {
   if (!(RTC.now().unixtime()%PollingIntervalSeconds)) {  //wait specified time in seconds.
-    mesureDistance();                                   //Locally mesures distance with ToF sensor.
-    sendDataRequest();                                  //Send data request to all nodes.
-  }
+    if (!WasHereOnce){
+      mesureDistance();                                   //Locally mesures distance with ToF sensor.
+      sendDataRequest();                                  //Send data request to all nodes.
+      WasHereOnce = 1;
+    }
+  } else WasHereOnce = 0;
   lora();                                               //Handles LoRa traffic.
 }
