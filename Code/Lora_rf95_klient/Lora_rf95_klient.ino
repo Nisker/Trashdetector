@@ -62,6 +62,7 @@ void lorasend (double i) {
   {
     Serial.println("No reply, is rf95_server running?");
   }
+  delay(500);
 }
 
 void wakeUp() {
@@ -70,9 +71,10 @@ void wakeUp() {
   if (rf95.recv(buf, &len)) {
     if (!strcmp(buf, "B")) {
       float temp = analogRead(A0);
-      temp = (temp * 0.48828125) / 4.225306122;
+      temp = (temp * 0.107421875);
       Serial.print(" temp: ");
       Serial.print(temp);
+      
       double i = afstandssensor.afstandCM(temp);
       Serial.print("afstand: ");
       Serial.println(i);
@@ -91,9 +93,7 @@ bool spaending() {
   Serial.print(spaending);
 
   Serial.print(" adc: ");
-  Serial.print(adc);
-
-  delay(1000);
+  Serial.println(adc,DEC);
 
   if (spaending <= minspaending) return 1;
   return 0;
@@ -104,4 +104,5 @@ void loop() {
   spaending();
 
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  
 }
