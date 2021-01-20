@@ -88,7 +88,7 @@ void wakeUp() {
 //reads voltage on battery, and return 1 if voltage is under 1.9.
 bool spaending() {
   float adc = analogRead(A2);
-  float factor = (463 / 51.2) * 1.22;
+  float factor = (463 / 51.2) * 1.22; //((463 + 51.2) / 51.2) * 1.1
   float spaending = (adc / 1024) * factor;
 
   Serial.print("Spænding: ");
