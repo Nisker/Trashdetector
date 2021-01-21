@@ -35,7 +35,9 @@ void lorasend (double i) {
   data[1] = (s >> 8) & 0xff;
   data[2] = (s) & 0xff;
   data[0] = 69;
-  //if voltage is under 5v, spaending returns 1, and data[3] sends a q to master, which means low voltage.
+  //if voltage is under 5v, spaending returns 1, 
+  //and data[3] sends a q to master, which means 
+  //low voltage.
   //otherwise it sends 0 which means OK.
   data[3] = spaending() ? 'q' : '0';
   rf95.send(data, sizeof(data));
@@ -62,6 +64,7 @@ void lorasend (double i) {
   {
     Serial.println("No reply, is rf95_server running?");
   }
+  delay(500);
 }
 
 void wakeUp() {
@@ -70,9 +73,10 @@ void wakeUp() {
   if (rf95.recv(buf, &len)) {
     if (!strcmp(buf, "B")) {
       float temp = analogRead(A0);
-      temp = (temp * 0.48828125) / 4.225306122;
+      temp = (temp * 0.107421875);
       Serial.print(" temp: ");
       Serial.print(temp);
+      
       double i = afstandssensor.afstandCM(temp);
       Serial.print("afstand: ");
       Serial.println(i);
@@ -84,16 +88,14 @@ void wakeUp() {
 //reads voltage on battery, and return 1 if voltage is under 1.9.
 bool spaending() {
   float adc = analogRead(A2);
-  float factor = (463 / 51.2) * 1.22;
+  float factor = (463 / 51.2) * 1.22; //((463 + 51.2) / 51.2) * 1.1
   float spaending = (adc / 1024) * factor;
 
   Serial.print("Spænding: ");
   Serial.print(spaending);
 
   Serial.print(" adc: ");
-  Serial.print(adc);
-
-  delay(1000);
+  Serial.println(adc,DEC);
 
   if (spaending <= minspaending) return 1;
   return 0;
@@ -104,4 +106,5 @@ void loop() {
   spaending();
 
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  
 }
