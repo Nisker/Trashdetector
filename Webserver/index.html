@@ -98,7 +98,6 @@
      async function getData() {
 		var eID = document.getElementById("idnr").value;
 		const Depth = Depths[IDs.indexOf(parseInt(eID))]
-		console.log(Depth);
         const response = await fetch('ID_'+eID+'.CSV');
         const data = await response.text();
         const time = [];
